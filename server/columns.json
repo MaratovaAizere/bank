@@ -1,0 +1,366 @@
+{
+  "account_holders": {
+    "account_id": {
+      "required": true,
+      "default": false
+    },
+    "customer_id": {
+      "required": true,
+      "default": false
+    },
+    "ownership_percent": {
+      "required": false,
+      "default": true
+    },
+    "added_at": {
+      "required": false,
+      "default": true
+    }
+  },
+  "accounts": {
+    "account_id": {
+      "required": true,
+      "default": false
+    },
+    "branch_id": {
+      "required": true,
+      "default": false
+    },
+    "account_number": {
+      "required": true,
+      "default": false
+    },
+    "account_type": {
+      "required": true,
+      "default": false
+    },
+    "balance": {
+      "required": false,
+      "default": true
+    },
+    "currency": {
+      "required": false,
+      "default": true
+    },
+    "status": {
+      "required": false,
+      "default": true
+    },
+    "opened_at": {
+      "required": false,
+      "default": true
+    },
+    "closed_at": {
+      "required": false,
+      "default": false
+    }
+  },
+  "bank_shareholders": {
+    "shareholder_id": {
+      "required": true,
+      "default": false
+    },
+    "full_name": {
+      "required": true,
+      "default": false
+    },
+    "holder_type": {
+      "required": true,
+      "default": false
+    },
+    "country": {
+      "required": true,
+      "default": false
+    },
+    "share_percent": {
+      "required": true,
+      "default": false
+    },
+    "shares_count": {
+      "required": true,
+      "default": false
+    },
+    "acquired_at": {
+      "required": true,
+      "default": false
+    },
+    "added_at": {
+      "required": false,
+      "default": true
+    },
+    "customer_id": {
+      "required": false,
+      "default": false
+    }
+  },
+  "branches": {
+    "branch_id": {
+      "required": true,
+      "default": false
+    },
+    "branch_name": {
+      "required": true,
+      "default": false
+    },
+    "swift_code": {
+      "required": true,
+      "default": false
+    },
+    "city": {
+      "required": true,
+      "default": false
+    },
+    "address": {
+      "required": true,
+      "default": false
+    },
+    "phone": {
+      "required": false,
+      "default": false
+    },
+    "created_at": {
+      "required": false,
+      "default": true
+    }
+  },
+  "customers": {
+    "customer_id": {
+      "required": true,
+      "default": false
+    },
+    "first_name": {
+      "required": true,
+      "default": false
+    },
+    "last_name": {
+      "required": true,
+      "default": false
+    },
+    "national_id": {
+      "required": true,
+      "default": false
+    },
+    "date_of_birth": {
+      "required": true,
+      "default": false
+    },
+    "phone": {
+      "required": true,
+      "default": false
+    },
+    "email": {
+      "required": false,
+      "default": false
+    },
+    "address": {
+      "required": false,
+      "default": false
+    },
+    "created_at": {
+      "required": false,
+      "default": true
+    }
+  },
+  "employees": {
+    "employee_id": {
+      "required": true,
+      "default": false
+    },
+    "branch_id": {
+      "required": true,
+      "default": false
+    },
+    "first_name": {
+      "required": true,
+      "default": false
+    },
+    "last_name": {
+      "required": true,
+      "default": false
+    },
+    "position": {
+      "required": true,
+      "default": false
+    },
+    "salary": {
+      "required": true,
+      "default": false
+    },
+    "email": {
+      "required": true,
+      "default": false
+    },
+    "hire_date": {
+      "required": true,
+      "default": false
+    },
+    "is_active": {
+      "required": false,
+      "default": true
+    }
+  },
+  "loan_payments": {
+    "payment_id": {
+      "required": true,
+      "default": false
+    },
+    "loan_id": {
+      "required": true,
+      "default": false
+    },
+    "account_id": {
+      "required": true,
+      "default": false
+    },
+    "amount": {
+      "required": true,
+      "default": false
+    },
+    "payment_date": {
+      "required": false,
+      "default": true
+    },
+    "payment_number": {
+      "required": true,
+      "default": false
+    },
+    "is_late": {
+      "required": false,
+      "default": true
+    }
+  },
+  "loans": {
+    "loan_id": {
+      "required": true,
+      "default": false
+    },
+    "customer_id": {
+      "required": true,
+      "default": false
+    },
+    "branch_id": {
+      "required": true,
+      "default": false
+    },
+    "approved_by": {
+      "required": false,
+      "default": false
+    },
+    "principal_amount": {
+      "required": true,
+      "default": false
+    },
+    "interest_rate": {
+      "required": true,
+      "default": false
+    },
+    "term_months": {
+      "required": true,
+      "default": false
+    },
+    "status": {
+      "required": false,
+      "default": true
+    },
+    "application_date": {
+      "required": false,
+      "default": true
+    },
+    "start_date": {
+      "required": false,
+      "default": false
+    },
+    "end_date": {
+      "required": false,
+      "default": false
+    }
+  },
+  "transactions": {
+    "transaction_id": {
+      "required": true,
+      "default": false
+    },
+    "from_account_id": {
+      "required": false,
+      "default": false
+    },
+    "to_account_id": {
+      "required": false,
+      "default": false
+    },
+    "transaction_type": {
+      "required": true,
+      "default": false
+    },
+    "amount": {
+      "required": true,
+      "default": false
+    },
+    "status": {
+      "required": false,
+      "default": true
+    },
+    "description": {
+      "required": false,
+      "default": false
+    },
+    "transaction_date": {
+      "required": false,
+      "default": true
+    }
+  },
+  "transfers": {
+    "transfer_id": {
+      "required": true,
+      "default": false
+    },
+    "transfer_type": {
+      "required": true,
+      "default": false
+    },
+    "from_account_id": {
+      "required": true,
+      "default": false
+    },
+    "to_account_id": {
+      "required": false,
+      "default": false
+    },
+    "currency": {
+      "required": true,
+      "default": false
+    },
+    "amount": {
+      "required": true,
+      "default": false
+    },
+    "fee": {
+      "required": false,
+      "default": true
+    },
+    "network": {
+      "required": false,
+      "default": false
+    },
+    "wallet_address": {
+      "required": false,
+      "default": false
+    },
+    "tx_hash": {
+      "required": false,
+      "default": false
+    },
+    "status": {
+      "required": true,
+      "default": false
+    },
+    "created_at": {
+      "required": true,
+      "default": false
+    },
+    "completed_at": {
+      "required": false,
+      "default": false
+    }
+  }
+}

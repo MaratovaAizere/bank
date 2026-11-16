@@ -1,16 +1,15 @@
 import http from 'node:http';
-import {timingSafeEqual} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import pg from 'pg';
 import {schema,primaryKey} from '../src/data.js';
 import {translate} from './mapping.js';
 import {scoringQuery,scoreCustomer} from './scoring.js';
+import {configureTokens,authenticate,can,publicProfile,roles as appRoles} from './auth.js';
 const columns=JSON.parse(await readFile(new URL('./columns.json',import.meta.url),'utf8'));
 // Preserve dates, numeric precision, and bigint identifiers in JSON.
 pg.types.setTypeParser(1082,v=>v);
 pg.types.setTypeParser(1114,v=>v.replace(' ','T'));
-const token=process.env.API_TOKEN;
-if(!token||token.length<24)throw new Error('Set API_TOKEN to a random value of at least 24 characters in .env');
+const configuredTokens=configureTokens();
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:5000,max:5,statement_timeout:10000});
 pool.on('error',e=>console.error('Database connection error:',e.code));
 const allowed=new Set((process.env.FRONTEND_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173').split(',').map(s=>s.trim()));
@@ -27,12 +26,23 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204);return res.end()}
   const url=new URL(req.url,'http://localhost');
   if(url.pathname==='/health'&&req.method==='GET')return send(200,{status:'running'});
-  const supplied=Buffer.from(req.headers.authorization||'');const expected=Buffer.from('Bearer '+token);
-  if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return send(401,{error:'Неверный API token.'});
+  const role=authenticate(req.headers.authorization,configuredTokens);
+  if(!role)return send(401,{error:'Неверный ключ доступа.'});
+  const requireRight=(ability,table)=>{if(!can(role,ability,table))fail(403,'Недостаточно прав для этой операции.')};
+  if(url.pathname==='/api/auth/me'&&req.method==='GET')return send(200,publicProfile(role));
+  if(url.pathname==='/api/auth/roles'&&req.method==='GET'){
+   requireRight('roles');
+   return send(200,{roles:Object.entries(appRoles).map(([name,r])=>({
+     name,label:r.label,enabled:configuredTokens.some(([active])=>active===name),
+     readTables:r.readTables,writeTables:r.writeTables,
+     scoring:r.scoring,analytics:r.analytics,roles:r.roles
+   }))});
+  }
   // Banking reports use fixed queries; browsers cannot execute arbitrary SQL.
   // Role data is independent of reports so access management still opens
   // when the reporting views have not been initialized.
   if(url.pathname==='/api/bank-access/roles'&&req.method==='GET'){
+   requireRight('roles');
    const result=await pool.query(`
     SELECT r.rolname, r.rolcanlogin, r.rolsuper, r.rolcreatedb,
            r.rolcreaterole, r.rolreplication,
@@ -43,6 +53,13 @@ const server=http.createServer(async(req,res)=>{
    return send(200,{roles:result.rows});
   }
   if(['/api/bank-analytics/overview','/api/lecture9/overview'].includes(url.pathname)&&req.method==='GET'){
+   requireRight('analytics');
+   if(role==='analyst'){
+    const branchObject=await pool.query("SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='mv_branch_statistics' AND c.relkind='m'");
+    if(!branchObject.rowCount)return send(200,{ready:false,missing:['mv_branch_statistics'],roles:[],customers:[],loans:[],branches:[],contacts:[]});
+    const branchData=await pool.query('SELECT * FROM public.mv_branch_statistics ORDER BY branch_id LIMIT 200');
+    return send(200,{ready:true,missing:[],roles:[],customers:[],loans:[],branches:branchData.rows,contacts:[]});
+   }
    const roles=await pool.query(`
     SELECT r.rolname, r.rolcanlogin, r.rolsuper, r.rolcreatedb,
            r.rolcreaterole, r.rolreplication,
@@ -68,11 +85,13 @@ const server=http.createServer(async(req,res)=>{
    return send(200,{ready:true,missing:[],roles:roles.rows,customers:customers.rows,loans:loans.rows,branches:branches.rows,contacts:contacts.rows});
   }
   if(['/api/bank-analytics/refresh','/api/lecture9/refresh'].includes(url.pathname)&&req.method==='POST'){
+   requireRight('refreshReports');
    await pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY public.mv_branch_statistics');
    return send(200,{ok:true,message:'Материализованное представление обновлено.'});
   }
   const contactMatch=url.pathname.match(/^\/api\/(?:bank-analytics|lecture9)\/contacts\/(\d+)$/);
   if(contactMatch&&req.method==='PATCH'){
+   requireRight('contactEdit');
    const input=await bodyOf(req);
    if(!input||typeof input!=='object'||Array.isArray(input))fail(400,'Ожидается объект JSON.');
    const fields=Object.keys(input);
@@ -86,13 +105,34 @@ const server=http.createServer(async(req,res)=>{
    return send(200,updated.rows[0]);
   }
   if(url.pathname==='/api/credit-scoring'&&req.method==='GET'){
+   requireRight('scoring');
    const result=await pool.query(scoringQuery);return send(200,result.rows.map(scoreCustomer));
   }
+  if(url.pathname==='/api/reports/summary'&&req.method==='GET'){
+   requireRight('summary');
+   const metrics=await pool.query(`SELECT
+     (SELECT COUNT(*)::int FROM public.customers) AS customer_count,
+     (SELECT COUNT(*)::int FROM public.accounts) AS account_count,
+     (SELECT COUNT(*)::int FROM public.loans) AS loan_count,
+     (SELECT COUNT(*)::int FROM public.branches) AS branch_count,
+     (SELECT COALESCE(SUM(balance),0) FROM public.accounts WHERE currency='KZT') AS balance_kzt`);
+   return send(200,metrics.rows[0]);
+  }
   if(url.pathname==='/api/data'&&req.method==='GET'){
-   const client=await pool.connect();try{await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');const data={};for(const table of Object.keys(schema)){const keys=primaryKey(table)?[primaryKey(table)]:['account_id','customer_id'];const result=await client.query(`SELECT * FROM public.${quote(table)} ORDER BY ${keys.map(quote).join(',')}`);data[table]=result.rows.map(row=>translate(table,row))}await client.query('COMMIT');return send(200,data)}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+   const client=await pool.connect();try{
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const data={};
+    for(const table of Object.keys(schema)){
+     if(!can(role,'read',table)){data[table]=[];continue;}
+     const keys=primaryKey(table)?[primaryKey(table)]:['account_id','customer_id'];
+     const result=await client.query(`SELECT * FROM public.${quote(table)} ORDER BY ${keys.map(quote).join(',')}`);
+     data[table]=result.rows.map(row=>translate(table,row));
+    }
+    await client.query('COMMIT');return send(200,data)
+   }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
   }
   const match=url.pathname.match(/^\/api\/([a-z_]+)(?:\/([^/]+))?$/);if(!match||!Object.hasOwn(schema,match[1]))return send(404,{error:'Unknown endpoint'});
-  const [,table,rawKey]=match;const pk=primaryKey(table);const keys=pk?[pk]:['account_id','customer_id'];const keyValues=rawKey?decodeURIComponent(rawKey).split(':'):[];
+  const [,table,rawKey]=match;requireRight('write',table);const pk=primaryKey(table);const keys=pk?[pk]:['account_id','customer_id'];const keyValues=rawKey?decodeURIComponent(rawKey).split(':'):[];
   if(rawKey&&(keyValues.length!==keys.length||keyValues.some(v=>!/^\d+$/.test(v))))fail(400,'Неверный ID.');
   if(!['POST','PATCH','DELETE'].includes(req.method)||((req.method==='POST')===Boolean(rawKey)))return send(405,{error:'Method not allowed'});
   let fields=[],values=[];

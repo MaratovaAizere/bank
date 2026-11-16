@@ -24,14 +24,76 @@ LEFT JOIN loan_stats ls ON ls.customer_id=c.customer_id
 LEFT JOIN payment_stats ps ON ps.customer_id=c.customer_id
 LEFT JOIN account_stats ac ON ac.customer_id=c.customer_id
 ORDER BY c.customer_id`;
-export function scoreCustomer(row){
- const loans=Number(row.loan_count),late=Number(row.late_count),payments=Number(row.payment_count),accounts=Number(row.account_count),balance=Number(row.kzt_balance),open=Number(row.open_loans);
- let score=550;const reasons=[];
- if(payments>0){const adjustment=late===0?110:-Math.min(220,Math.round(late/payments*220));score+=adjustment;reasons.push(late===0?'Платежи без просрочек':`${late} просрочек из ${payments} платежей`)}else reasons.push('Нет истории платежей');
- if(loans>0){score+=30;reasons.push('Есть кредитная история')}
- if(accounts>0){score+=35;reasons.push('Есть банковский счёт')}
- if(balance>=1000000){score+=65;reasons.push('Баланс KZT от 1 млн')}else if(balance>=100000){score+=30;reasons.push('Баланс KZT от 100 тыс.')}
- if(open>2){score-=50;reasons.push('Более двух открытых кредитов')}
- score=Math.max(300,Math.min(850,score));
- return {...row,score,risk:score>=700?'Низкий':score>=580?'Средний':'Высокий',reasons};
+
+export function scoreCustomer(row) {
+  const loans = Number(row.loan_count);
+  const late = Number(row.late_count);
+  const payments = Number(row.payment_count);
+  const accounts = Number(row.account_count);
+  const balance = Number(row.kzt_balance);
+  const open = Number(row.open_loans);
+
+  let score = 550;
+  const reasons = [];
+
+  if (payments > 0) {
+    const adjustment = late === 0
+      ? 110
+      : -Math.min(220, Math.round(late / payments * 220));
+
+    score += adjustment;
+
+    reasons.push(
+      late === 0
+        ? 'Платежи без просрочек'
+        : `${late} просрочек из ${payments} платежей`
+    );
+  } else {
+    reasons.push('Нет истории платежей');
+  }
+
+  if (loans > 0) {
+    score += 30;
+    reasons.push('Есть кредитная история');
+  }
+
+  if (accounts > 0) {
+    score += 35;
+    reasons.push('Есть банковский счёт');
+  }
+
+  if (balance >= 1000000) {
+    score += 65;
+    reasons.push('Баланс KZT от 1 млн');
+  } else if (balance >= 100000) {
+    score += 30;
+    reasons.push('Баланс KZT от 100 тыс.');
+  }
+
+  if (open > 2) {
+    score -= 50;
+    reasons.push('Более двух открытых кредитов');
+  }
+
+  // Limit the original score to 300–850
+  score = Math.max(300, Math.min(850, score));
+
+  // Determine risk using the original score
+  const risk = score >= 700
+    ? 'Низкий'
+    : score >= 580
+      ? 'Средний'
+      : 'Высокий';
+
+  // Normalize the score to the range 0–1
+  const normalizedScore = (score - 300) / (850 - 300);
+
+  return {
+    ...row,
+    score: Number(normalizedScore.toFixed(3)),
+    rawScore: score,
+    risk,
+    reasons
+  };
 }
+

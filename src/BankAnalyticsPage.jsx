@@ -14,13 +14,16 @@ const sections = [
   {key:'roles',title:'Роли и доступ',caption:'Права пользователей базы',icon:ShieldCheck}
 ];
 
-export default function BankAnalyticsPage({api, notify}) {
-  const [section,setSection]=useState('views');
+export default function BankAnalyticsPage({api, notify, role='admin'}) {
+  const isAnalyst=role==='analyst';
+  const visibleSections=isAnalyst?sections.filter(s=>s.key==='branches'):sections;
+  const [section,setSection]=useState(isAnalyst?'branches':'views');
   const [view,setView]=useState('accounts');
   const [analytics,setAnalytics]=useState(null);
   const [analyticsLoading,setAnalyticsLoading]=useState(true);
   const [analyticsError,setAnalyticsError]=useState('');
   const [roles,setRoles]=useState([]);
+  const [bankRoles,setBankRoles]=useState([]);
   const [rolesLoading,setRolesLoading]=useState(false);
   const [rolesError,setRolesError]=useState('');
   const [rolesLoaded,setRolesLoaded]=useState(false);
@@ -39,8 +42,9 @@ export default function BankAnalyticsPage({api, notify}) {
     setRolesLoading(true);
     setRolesError('');
     try {
-      const data=await api('/api/bank-access/roles');
+      const [data,configured]=await Promise.all([api('/api/bank-access/roles'),api('/api/auth/roles')]);
       setRoles(Array.isArray(data?.roles) ? data.roles : []);
+      setBankRoles(Array.isArray(configured?.roles) ? configured.roles : []);
       setRolesLoaded(true);
     } catch(e) {setRolesError(e.message);}
     finally {setRolesLoading(false);}
@@ -82,7 +86,7 @@ export default function BankAnalyticsPage({api, notify}) {
       </div>
     </div>
     <div className="analytics-sections" role="tablist" aria-label="Разделы аналитики">
-      {sections.map(item=><button
+      {visibleSections.map(item=><button
         key={item.key} id={`analytics-tab-${item.key}`} type="button"
         role="tab" aria-selected={section===item.key}
         aria-controls={`analytics-panel-${item.key}`}
@@ -103,7 +107,20 @@ export default function BankAnalyticsPage({api, notify}) {
       </section>
       {rolesError&&<div className="analytics-warning"><AlertCircle size={17}/>{rolesError}<button className="outline" type="button" onClick={loadRoles}>Повторить</button></div>}
       <section className="panel analytics-table-panel">
-        <div className="analytics-table-heading"><h2>Реестр ролей</h2><span className="count-pill">{roles.length} записей</span></div>
+        <div className="analytics-table-heading"><h2>Роли банковского приложения</h2><span className="count-pill">{bankRoles.length} роли</span></div>
+        <div className="table-scroll"><table><thead><tr><th>Роль</th><th>Статус</th><th>Чтение</th><th>Изменение</th><th>Дополнительно</th></tr></thead><tbody>
+          {bankRoles.map(item=><tr key={item.name}>
+            <td><strong>{item.label}</strong></td>
+            <td>{item.enabled?'Активна':'Нет ключа в .env'}</td>
+            <td>{item.readTables.length} таблиц</td>
+            <td>{item.writeTables.length ? item.writeTables.join(', ') : 'Нет'}</td>
+            <td>{[item.scoring?'Скоринг':null,item.analytics?'Аналитика':null,item.roles?'Управление доступом':null].filter(Boolean).join(' · ')||'Только чтение'}</td>
+          </tr>)}
+          {!bankRoles.length&&emptyRow(5,rolesLoading?'Загружаем роли…':'Роли приложения не загружены')}
+        </tbody></table></div>
+      </section>
+      <section className="panel analytics-table-panel">
+        <div className="analytics-table-heading"><h2>Роли PostgreSQL</h2><span className="count-pill">{roles.length} записей</span></div>
         <div className="table-scroll"><table><thead><tr><th>Роль</th><th>Вход</th><th>Администратор</th><th>Создание БД</th><th>Управление ролями</th><th>Репликация</th><th>Группы</th></tr></thead><tbody>
           {roles.map(item=><tr key={item.rolname}>
             <td className="num">{item.rolname}</td>
@@ -164,7 +181,7 @@ export default function BankAnalyticsPage({api, notify}) {
             <div className="analytics-label"><Database size={18}/> ФИЛИАЛЬНАЯ СЕТЬ</div>
             <div className="analytics-info-row"><div><h2>Операционные показатели филиалов</h2>
               <p>Количество счетов и кредитов, а также суммарные остатки в тенге. Показатели обновляются по запросу.</p></div>
-              <button type="button" className="primary analytics-icon-button" disabled={refreshing} onClick={refreshBranches}><RefreshCcw size={16}/>{refreshing?'Обновление…':'Обновить показатели'}</button>
+              {!isAnalyst&&<button type="button" className="primary analytics-icon-button" disabled={refreshing} onClick={refreshBranches}><RefreshCcw size={16}/>{refreshing?'Обновление…':'Обновить показатели'}</button>}
             </div>
           </section>
           <section className="panel analytics-table-panel">

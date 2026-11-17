@@ -90,7 +90,7 @@ export function scoreCustomer(row) {
 
   return {
     ...row,
-    score: Number(normalizedScore.toFixed(3)),
+    score: Number(normalizedScore.toFixed(1)),
     rawScore: score,
     risk,
     reasons

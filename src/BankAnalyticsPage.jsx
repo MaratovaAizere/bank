@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import BankPagination from './BankPagination.jsx';
 import {Database, Layers3, RefreshCcw, ShieldCheck, Pencil, X, Check, AlertCircle, Building2} from 'lucide-react';
 
 const formatRoleGroups = value => {
@@ -30,6 +31,23 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
   const [refreshing,setRefreshing]=useState(false);
   const [editing,setEditing]=useState(null);
   const [saving,setSaving]=useState(false);
+  const [pageByKey, setPageByKey] = useState({});
+  const [pageSizeByKey, setPageSizeByKey] = useState({});
+  const getCurrentPage=(rows,key)=>{
+    const size=pageSizeByKey[key]??25;
+    return Math.max(1,Math.min(pageByKey[key]??1,Math.max(1,Math.ceil(rows.length/size))));
+  };
+  const pageRows=(rows,key)=>{
+    const size=pageSizeByKey[key]??25;
+    const current=getCurrentPage(rows,key);
+    return rows.slice((current-1)*size,current*size);
+  };
+  const pager=(rows,key)=><BankPagination
+    total={rows.length} page={getCurrentPage(rows,key)} pageSize={pageSizeByKey[key]??25}
+    onPageChange={page=>setPageByKey(prev=>({...prev,[key]:page}))}
+    onPageSizeChange={size=>{setPageSizeByKey(prev=>({...prev,[key]:size}));setPageByKey(prev=>({...prev,[key]:1}));}}
+  />;
+
 
   const loadAnalytics = async () => {
     setAnalyticsLoading(true);
@@ -109,7 +127,7 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
       <section className="panel analytics-table-panel">
         <div className="analytics-table-heading"><h2>Роли банковского приложения</h2><span className="count-pill">{bankRoles.length} роли</span></div>
         <div className="table-scroll"><table><thead><tr><th>Роль</th><th>Статус</th><th>Чтение</th><th>Изменение</th><th>Дополнительно</th></tr></thead><tbody>
-          {bankRoles.map(item=><tr key={item.name}>
+          {pageRows(bankRoles,'bankRoles').map(item=><tr key={item.name}>
             <td><strong>{item.label}</strong></td>
             <td>{item.enabled?'Активна':'Нет ключа в .env'}</td>
             <td>{item.readTables.length} таблиц</td>
@@ -118,11 +136,13 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
           </tr>)}
           {!bankRoles.length&&emptyRow(5,rolesLoading?'Загружаем роли…':'Роли приложения не загружены')}
         </tbody></table></div>
+      
+        {pager(bankRoles,'bankRoles')}
       </section>
       <section className="panel analytics-table-panel">
         <div className="analytics-table-heading"><h2>Роли PostgreSQL</h2><span className="count-pill">{roles.length} записей</span></div>
         <div className="table-scroll"><table><thead><tr><th>Роль</th><th>Вход</th><th>Администратор</th><th>Создание БД</th><th>Управление ролями</th><th>Репликация</th><th>Группы</th></tr></thead><tbody>
-          {roles.map(item=><tr key={item.rolname}>
+          {pageRows(roles,'postgresRoles').map(item=><tr key={item.rolname}>
             <td className="num">{item.rolname}</td>
             <td>{item.rolcanlogin?'Разрешён':'Запрещён'}</td>
             <td>{item.rolsuper?'Да':'Нет'}</td>
@@ -134,6 +154,8 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
           {rolesLoading&&emptyRow(7,'Загружаем данные о ролях…')}
           {!rolesLoading&&!roles.length&&emptyRow(7,rolesError?'Не удалось получить роли':'Нет доступных записей')}
         </tbody></table></div>
+      
+        {pager(roles,'postgresRoles')}
       </section>
       <p className="hint"><ShieldCheck size={16}/> Изменение полномочий выполняется администратором базы данных.</p>
     </div> : <div role="tabpanel" id={`analytics-panel-${section}`} aria-labelledby={`analytics-tab-${section}`}>
@@ -162,18 +184,20 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
             </div>
             <div className="table-scroll">
               {view==='accounts'&&<table><thead><tr><th>ID</th><th>Клиент</th><th>Счета</th><th>Баланс KZT</th></tr></thead><tbody>
-                {analytics.customers.map(item=><tr key={item.customer_id}><td>#{item.customer_id}</td><td>{item.first_name} {item.last_name}</td><td>{item.account_count}</td><td className="num">{formatMoney(item.balance_kzt)}</td></tr>)}
+                {pageRows(analytics.customers,'views:accounts').map(item=><tr key={item.customer_id}><td>#{item.customer_id}</td><td>{item.first_name} {item.last_name}</td><td>{item.account_count}</td><td className="num">{formatMoney(item.balance_kzt)}</td></tr>)}
                 {!analytics.customers.length&&emptyRow(4)}
               </tbody></table>}
               {view==='loans'&&<table><thead><tr><th>ID кредита</th><th>Клиент</th><th>Сумма</th><th>Ставка</th><th>Статус</th></tr></thead><tbody>
-                {analytics.loans.map(item=><tr key={item.loan_id}><td>#{item.loan_id}</td><td>{item.first_name} {item.last_name}</td><td className="num">{formatMoney(item.principal_amount)}</td><td>{item.interest_rate}%</td><td>{item.status}</td></tr>)}
+                {pageRows(analytics.loans,'views:loans').map(item=><tr key={item.loan_id}><td>#{item.loan_id}</td><td>{item.first_name} {item.last_name}</td><td className="num">{formatMoney(item.principal_amount)}</td><td>{item.interest_rate}%</td><td>{item.status}</td></tr>)}
                 {!analytics.loans.length&&emptyRow(5,'Действующих кредитов нет')}
               </tbody></table>}
               {view==='contacts'&&<table><thead><tr><th>ID</th><th>Клиент</th><th>Телефон</th><th>Email</th><th>Действие</th></tr></thead><tbody>
-                {analytics.contacts.map(item=><tr key={item.customer_id}><td>#{item.customer_id}</td><td>{item.first_name} {item.last_name}</td><td>{item.phone||'—'}</td><td>{item.email||'—'}</td><td><button className="outline analytics-icon-button" type="button" onClick={()=>setEditing({...item,phone:item.phone??'',email:item.email??''})}><Pencil size={14}/> Изменить</button></td></tr>)}
+                {pageRows(analytics.contacts,'views:contacts').map(item=><tr key={item.customer_id}><td>#{item.customer_id}</td><td>{item.first_name} {item.last_name}</td><td>{item.phone||'—'}</td><td>{item.email||'—'}</td><td><button className="outline analytics-icon-button" type="button" onClick={()=>setEditing({...item,phone:item.phone??'',email:item.email??''})}><Pencil size={14}/> Изменить</button></td></tr>)}
                 {!analytics.contacts.length&&emptyRow(5)}
               </tbody></table>}
             </div>
+          
+            {pager(view==='accounts'?analytics.customers:view==='loans'?analytics.loans:analytics.contacts,`views:${view}`)}
           </section>
         </>}
         {section==='branches'&&<>
@@ -187,9 +211,11 @@ export default function BankAnalyticsPage({api, notify, role='admin'}) {
           <section className="panel analytics-table-panel">
             <div className="analytics-table-heading"><h2>Результаты по филиалам</h2><span className="count-pill">{analytics.branches.length} филиалов</span></div>
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Филиал</th><th>Город</th><th>Счета</th><th>Кредиты</th><th>Баланс KZT</th></tr></thead><tbody>
-              {analytics.branches.map(item=><tr key={item.branch_id}><td>#{item.branch_id}</td><td>{item.branch_name}</td><td>{item.city}</td><td>{item.account_count}</td><td>{item.loan_count}</td><td className="num">{formatMoney(item.total_kzt)}</td></tr>)}
+              {pageRows(analytics.branches,'branches').map(item=><tr key={item.branch_id}><td>#{item.branch_id}</td><td>{item.branch_name}</td><td>{item.city}</td><td>{item.account_count}</td><td>{item.loan_count}</td><td className="num">{formatMoney(item.total_kzt)}</td></tr>)}
               {!analytics.branches.length&&emptyRow(6,'Пока нет данных о филиалах')}
             </tbody></table></div>
+          
+            {pager(analytics.branches,'branches')}
           </section>
         </>}
       </>}

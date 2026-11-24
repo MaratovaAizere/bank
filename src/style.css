@@ -35,3 +35,30 @@
 .rbac-actions p,.rbac-summary p{font-size:13px;color:#65758c;display:flex;gap:8px;align-items:center;line-height:1.5}
 .rbac-summary strong{font-size:29px;color:#284267}
 .rbac-denied{padding:30px}
+
+/* Compact pagination controls in the transactions register */
+.table-footer{flex-wrap:wrap;gap:12px}
+.table-footer-left,.table-footer-navigation{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.page-size-control,.page-jump,.page-jump label{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.page-size-control select,.page-jump input{height:30px;border:1px solid #dfe7f2;background:#fff;border-radius:7px;color:#344361;font:inherit;padding:0 7px}
+.page-size-control select{min-width:58px}
+.page-jump input{width:55px;min-width:0}
+.table-footer .page-jump button{width:auto;height:30px;padding:0 9px;display:inline-flex;font-weight:600;white-space:nowrap}
+.table-footer button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:760px){.table-footer{align-items:flex-start}.table-footer-left,.table-footer-navigation{gap:9px}}
+
+/* Page number dropdown (Northstar Bank transactions) */
+.page-jump.page-picker{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.page-jump.page-picker select{height:34px;min-width:68px;padding:0 28px 0 10px;border:1px solid #dfe7f2;border-radius:9px;background:#fff;color:#344361;font:inherit;cursor:pointer}
+.page-jump.page-picker select:focus-visible{outline:2px solid #80aaff;outline-offset:2px}
+
+
+/* Unified pagination across all Northstar Bank table sections */
+.bank-pagination{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:17px 22px}
+.bank-pagination .table-footer-left,.bank-pagination .table-footer-navigation{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bank-pagination .page-size-control,.bank-pagination .page-picker{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.bank-pagination .page-size-control select,.bank-pagination .page-picker select{height:34px;min-width:68px;padding:0 26px 0 9px;border:1px solid #dfe7f2;border-radius:9px;background:#fff;color:#344361;font:inherit;cursor:pointer}
+.bank-pagination .page-size-control select:focus-visible,.bank-pagination .page-picker select:focus-visible{outline:2px solid #80aaff;outline-offset:2px}
+.bank-pagination button{width:30px;height:34px;display:grid;place-items:center}
+.bank-pagination button:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:760px){.bank-pagination{align-items:flex-start}.bank-pagination .table-footer-left,.bank-pagination .table-footer-navigation{gap:9px}}

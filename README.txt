@@ -1,22 +1,34 @@
-NORTHSTAR BANK — исправление белого экрана в «Роли и доступ»
+Northstar Bank — единая пагинация для всех таблиц
 
-Проблема: PostgreSQL возвращал member_of в формате массива name[];
-Node.js pg при таком типе может передать строку (например, "{group}").
-React пытался вызвать .join() на строке и выдавал ошибку.
+Что изменится:
+- Клиенты, счета, транзакции, переводы, кредиты, платежи по кредитам,
+  филиалы, сотрудники, владельцы счетов и акционеры.
+- Кредитный скоринг.
+- Аналитика: клиенты и счета, кредиты, контакты, филиалы,
+  роли приложения и роли PostgreSQL.
+- По умолчанию 25 строк; можно выбрать 10, 25, 50 или 100.
+- Выбор страницы через выпадающий список + кнопки вперед/назад.
+- В таблице транзакций новые записи по-прежнему показываются первыми.
+- Размер страницы запоминается отдельно для каждого раздела в рамках сессии сайта.
 
-Исправление:
-- server/index.js: запрос возвращает member_of как text[];
-- src/BankAnalyticsPage.jsx: безопасно выводится список групп;
-- интерфейс сохраняется без учебных блоков.
+УСТАНОВКА (внутри текущей папки проекта, где package.json):
 
-Установка: распаковать содержимое архива в корень существующей папки bank-frontend.
-Перед заменой сохраните резервную копию проекта.
+1) Скачай Northstar_Bank_All_Sections_Pagination_Update.zip в Downloads.
+2) В VS Code открой Terminal. Проверь pwd и ls (должен быть package.json).
+3) Выполни:
+   unzip -o ~/Downloads/Northstar_Bank_All_Sections_Pagination_Update.zip -d .
+   python3 apply_all_pagination.py
+4) Обнови сайт Command + R. Если сайт остановлен: npm run dev
 
-1) Остановите API (Control+C в терминале npm run server)
-2) Из папки bank-frontend:
-   unzip -o ~/Downloads/Northstar_Bank_Roles_Fix.zip -d .
-3) Перезапустите API: npm run server
-4) Убедитесь, что npm run dev работает в другом терминале
-5) Обновите страницу браузера (Command+Shift+R) и откройте «Роли и доступ»
+Скрипт создаёт резервные копии исходных main.jsx,
+BankAnalyticsPage.jsx, style.css ВНЕ папки проекта.
 
-.env, SQL и банковские таблицы не изменяются.
+НЕ ЗАТРАГИВАЕТ: .env, PostgreSQL, API, SQL, роли или денежные операции.
+
+Если скрипт сообщил, что структура отличается, он НЕ изменит файлы;
+пришли текущие src/main.jsx и src/BankAnalyticsPage.jsx для точечной адаптации.
+
+GitHub (при желании):
+ git add src/main.jsx src/BankAnalyticsPage.jsx src/style.css src/BankPagination.jsx
+ git commit -m "Add pagination to all bank sections"
+ git push

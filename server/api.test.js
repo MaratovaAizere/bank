@@ -21,3 +21,16 @@ test('lecture 9 editing rejects unexpected contact fields before touching DB',as
  const response=await fetch(base+'/api/lecture9/contacts/1',{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({rolsuper:true})});
  assert.equal(response.status,400);
 });
+
+test('account balances can only change via ledger transactions',async()=>{
+ const headers={Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
+ const response=await fetch(base+'/api/accounts/1',{method:'PATCH',headers,body:JSON.stringify({balance:999999})});
+ assert.equal(response.status,400);
+ assert.match((await response.json()).error,/Баланс/);
+});
+
+test('API refuses client-supplied balance snapshots',async()=>{
+ const headers={Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
+ const response=await fetch(base+'/api/transactions',{method:'POST',headers,body:JSON.stringify({from_balance_after:0})});
+ assert.equal(response.status,400);
+});

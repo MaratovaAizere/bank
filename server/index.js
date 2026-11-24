@@ -14,7 +14,7 @@ const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,connectionTime
 pool.on('error',e=>console.error('Database connection error:',e.code));
 const allowed=new Set((process.env.FRONTEND_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173').split(',').map(s=>s.trim()));
 const quote=s=>'"'+s+'"';
-const errors={'23505':'Такая запись уже существует.','23503':'Связанная запись отсутствует или используется другой таблицей.','23502':'Заполните обязательные поля.','23514':'Данные нарушают ограничения базы (сумма, дата или значение).','22P02':'Неверный формат значения.','22007':'Неверный формат даты.','22008':'Неверная дата.','22003':'Число слишком большое.','22001':'Текст слишком длинный.'};
+const errors={'23505':'Такая запись уже существует.','23503':'Связанная запись отсутствует или используется другой таблицей.','23502':'Заполните обязательные поля.','23514':'Данные нарушают ограничения базы (сумма, дата или значение).','22P02':'Неверный формат значения.','22007':'Неверный формат даты.','22008':'Неверная дата.','22003':'Число слишком большое.','22001':'Текст слишком длинный.', 'P0002':'Счёт не найден.', 'P0001':'Операция отклонена.'};
 function fail(status,message){throw Object.assign(new Error(message),{status})}
 async function bodyOf(req){let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>65536)fail(413,'Слишком большой запрос.')}try{return JSON.parse(body)}catch{fail(400,'Некорректный JSON.')}}
 const server=http.createServer(async(req,res)=>{
@@ -110,12 +110,7 @@ const server=http.createServer(async(req,res)=>{
   }
   if(url.pathname==='/api/reports/summary'&&req.method==='GET'){
    requireRight('summary');
-   const metrics=await pool.query(`SELECT
-     (SELECT COUNT(*)::int FROM public.customers) AS customer_count,
-     (SELECT COUNT(*)::int FROM public.accounts) AS account_count,
-     (SELECT COUNT(*)::int FROM public.loans) AS loan_count,
-     (SELECT COUNT(*)::int FROM public.branches) AS branch_count,
-     (SELECT COALESCE(SUM(balance),0) FROM public.accounts WHERE currency='KZT') AS balance_kzt`);
+   const metrics=await pool.query('SELECT * FROM public.v_bank_summary');
    return send(200,metrics.rows[0]);
   }
   if(url.pathname==='/api/data'&&req.method==='GET'){
@@ -125,7 +120,8 @@ const server=http.createServer(async(req,res)=>{
     for(const table of Object.keys(schema)){
      if(!can(role,'read',table)){data[table]=[];continue;}
      const keys=primaryKey(table)?[primaryKey(table)]:['account_id','customer_id'];
-     const result=await client.query(`SELECT * FROM public.${quote(table)} ORDER BY ${keys.map(quote).join(',')}`);
+     const source=table==='transactions'?'v_transaction_balances':table;
+     const result=await client.query(`SELECT * FROM public.${quote(source)} ORDER BY ${keys.map(quote).join(',')}`);
      data[table]=result.rows.map(row=>translate(table,row));
     }
     await client.query('COMMIT');return send(200,data)
@@ -141,6 +137,7 @@ const server=http.createServer(async(req,res)=>{
    const row=translate(table,input,true);
    for(const [key,value]of Object.entries(row)){
     if(!Object.hasOwn(columns[table],key)||key===pk)fail(400,'Недопустимое поле: '+key);
+    if(table==='accounts'&&key==='balance')fail(400,'Баланс можно изменять только через транзакции.');
     if(value!==null&&!['string','number','boolean'].includes(typeof value))fail(400,'Неверный формат поля: '+key);
     if(req.method==='POST'&&(value===''||value==null)&&columns[table][key].default)continue;
     fields.push(key);values.push(value===''?null:value);
@@ -152,9 +149,21 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='POST')query=`INSERT INTO public.${quote(table)} (${fields.map(quote)}) VALUES (${values.map((_,i)=>'$'+(i+1))}) RETURNING *`;
   else if(req.method==='PATCH')query=`UPDATE public.${quote(table)} SET ${fields.map((key,i)=>`${quote(key)}=$${i+1}`).join(',')} WHERE ${where} RETURNING *`;
   else query=`DELETE FROM public.${quote(table)} WHERE ${where} RETURNING *`;
-  const result=await pool.query(query,[...values,...keyValues]);if(!result.rowCount)fail(404,'Запись не найдена. Обновите таблицу.');
+  let result;
+  if(table==='transactions'){
+   // The trigger and its account updates are committed or rolled back together.
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    result=await client.query(query,[...values,...keyValues]);
+    if(!result.rowCount)fail(404,'Запись не найдена. Обновите таблицу.');
+    await client.query('COMMIT');
+   }catch(error){await client.query('ROLLBACK');throw error}
+   finally{client.release()}
+  }else result=await pool.query(query,[...values,...keyValues]);
+  if(!result.rowCount)fail(404,'Запись не найдена. Обновите таблицу.');
   return send(req.method==='POST'?201:200,translate(table,result.rows[0]));
- }catch(e){console.error('Request failed:',e.code||e.status||'internal');return send(e.status||(errors[e.code]?400:503),{error:e.status?e.message:errors[e.code]||'База недоступна. Проверьте настройки PostgreSQL на сервере.'})}
+ }catch(e){console.error('Request failed:',e.code||e.status||'internal');return send(e.status||(errors[e.code]?400:503),{error:e.status?e.message:e.code==='P0001'?e.message:errors[e.code]||'База недоступна. Проверьте настройки PostgreSQL на сервере.'})}
 });
 server.listen(Number(process.env.PORT||3001),process.env.HOST||'127.0.0.1',()=>console.log('Bank API listening on port '+(process.env.PORT||3001)));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>pool.end().then(()=>process.exit(0))));
